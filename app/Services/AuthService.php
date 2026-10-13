@@ -74,6 +74,7 @@ class AuthService
             if ($user->deactivated_at && $user->deactivated_at->addDays($window)->isFuture()) {
                 $user->forceFill(['status' => 'active', 'deactivated_at' => null])->save();
                 $user->educatorProfile?->update(['open_to_work' => true]);
+                $user->professionalListings()->onlyTrashed()->restore();
 
                 return;
             }
@@ -247,6 +248,11 @@ class AuthService
 
     private function createRoleProfile(User $user, array $data): void
     {
+        // Professionals have no profile row; they create or claim directory listings later.
+        if ($user->role === 'professional') {
+            return;
+        }
+
         if ($user->role === 'educator') {
             $name = trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? ''));
 

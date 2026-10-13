@@ -8,12 +8,13 @@ class JobApplication extends Model
 {
     protected $fillable = [
         'job_id', 'educator_id', 'status', 'interview_at', 'interview_location', 'interview_details',
-        'cover_message', 'resume_path', 'applied_at', 'reviewed_at', 'centre_seen_at', 'status_changed_at', 'withdrawn_at',
+        'cover_message', 'resume_path', 'shared_items', 'applied_at', 'reviewed_at', 'centre_seen_at', 'status_changed_at', 'withdrawn_at',
     ];
 
     protected function casts(): array
     {
         return [
+            'shared_items' => 'array',
             'applied_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'centre_seen_at' => 'datetime',

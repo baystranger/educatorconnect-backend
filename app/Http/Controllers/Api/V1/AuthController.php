@@ -98,7 +98,7 @@ class AuthController extends Controller
 
         $data = $request->validate([
             'intent' => ['required', 'in:login,signup,connect'],
-            'role' => ['required_if:intent,signup', 'nullable', 'in:educator,childcare_centre'],
+            'role' => ['required_if:intent,signup', 'nullable', 'in:educator,childcare_centre,professional'],
         ]);
 
         $frontendUrl = rtrim(config('frontend.url'), '/');
@@ -195,6 +195,17 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return $this->ok(AuthUserResource::make($request->user()->load(self::USER_RELATIONS)));
+    }
+
+    /** The signed-in account, or null for guests. */
+    public function session(Request $request): JsonResponse
+    {
+        $user = $request->user('sanctum');
+        if ($user && $user->status !== 'active') {
+            $user = null;
+        }
+
+        return $this->ok($user ? AuthUserResource::make($user->load(self::USER_RELATIONS)) : null);
     }
 
     public function resendVerification(Request $request): JsonResponse

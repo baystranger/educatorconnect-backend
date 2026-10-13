@@ -30,7 +30,7 @@ class ApplicationController extends Controller
         $statuses = ApplicationStages::filterStatuses($data['filter'] ?? 'all');
         $applications = (clone $base)
             ->when($statuses, fn ($q) => $q->whereIn('status', $statuses))
-            ->with(['job.centre', 'events'])
+            ->with(['job.centre', 'events', 'messages'])
             ->latest('applied_at')
             ->paginate(20);
 
@@ -57,8 +57,15 @@ class ApplicationController extends Controller
 
     public function store(Request $request, Job $job): JsonResponse
     {
-        $data = $request->validate(['cover_message' => ['nullable', 'string', 'max:5000']]);
-        $application = $this->applications->apply($job, $request->user(), $data['cover_message'] ?? null);
+        $data = $request->validate([
+            'cover_message' => ['nullable', 'string', 'max:5000'],
+            'share_video' => ['sometimes', 'boolean'],
+            'share_certifications' => ['sometimes', 'boolean'],
+        ]);
+        $application = $this->applications->apply($job, $request->user(), $data['cover_message'] ?? null, [
+            'video' => $data['share_video'] ?? true,
+            'certifications' => $data['share_certifications'] ?? true,
+        ]);
 
         return $this->created(new EducatorApplicationResource($application), 'Application sent to '.$job->centre->name.'.');
     }

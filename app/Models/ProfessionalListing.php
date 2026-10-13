@@ -21,7 +21,7 @@ class ProfessionalListing extends Model
         return [
             'services_offered' => 'array', 'credentials' => 'array', 'social_links' => 'array',
             'is_verified' => 'boolean', 'is_featured' => 'boolean', 'book_consultation' => 'boolean',
-            'latitude' => 'float', 'longitude' => 'float',
+            'latitude' => 'float', 'longitude' => 'float', 'reviewed_at' => 'datetime',
         ];
     }
 

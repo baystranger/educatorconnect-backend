@@ -13,7 +13,7 @@ use Illuminate\Notifications\DatabaseNotification;
 class NotificationController extends Controller
 {
     public function index(Request $request): JsonResponse
-    {
+    {        
         $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:50']]);
         $user = $request->user();
 

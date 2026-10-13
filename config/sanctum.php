@@ -18,12 +18,26 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
-        Sanctum::currentApplicationUrlWithPort(),
-        // Sanctum::currentRequestHost(),
-    ))),
+    // The hosts of APP_URL and FRONTEND_URL (plus their www. variants) are always
+    // stateful, so a production deploy keeps cookie sessions even if
+    // SANCTUM_STATEFUL_DOMAINS still lists only local development hosts.
+    'stateful' => (function (): array {
+        $domains = explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1'));
+
+        foreach ([env('APP_URL'), env('FRONTEND_URL'), env('FRONTEND_URL_ALTERNATE')] as $url) {
+            $host = $url ? parse_url($url, PHP_URL_HOST) : null;
+            if (! $host) {
+                continue;
+            }
+            $port = parse_url($url, PHP_URL_PORT);
+            $bare = preg_replace('/^www\./', '', $host);
+            foreach (str_contains($bare, '.') && ! filter_var($bare, FILTER_VALIDATE_IP) ? [$bare, "www.{$bare}"] : [$bare] as $candidate) {
+                $domains[] = $port ? "{$candidate}:{$port}" : $candidate;
+            }
+        }
+
+        return array_values(array_unique(array_filter(array_map('trim', $domains))));
+    })(),
 
     /*
     |--------------------------------------------------------------------------

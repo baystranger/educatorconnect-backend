@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\JobController;
 use App\Http\Controllers\Api\V1\MetaController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ParentRequestController;
+use App\Http\Controllers\Api\V1\Professional;
 use App\Http\Controllers\Api\V1\ProfessionalDirectoryController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::post('reset-password', [AuthController::class, 'resetPassword']);
             Route::post('oauth/exchange', [AuthController::class, 'exchangeOAuthCode']);
         });
+
+        // Guests get `data: null` (not 401) so first-party page loads stay quiet.
+        Route::get('session', [AuthController::class, 'session']);
 
         Route::get('email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
             ->middleware(['signed', 'throttle:6,1'])
@@ -145,18 +149,28 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
 
         // ── Professional ───────────────────────────────────────────
         Route::middleware('role:professional|administrator')->group(function () {
-            Route::post('professionals', [ProfessionalDirectoryController::class, 'store']);
-            Route::post('professionals/{listing}/claim', [ProfessionalDirectoryController::class, 'claim']);
+            Route::post('professionals', [ProfessionalDirectoryController::class, 'store'])->middleware('throttle:public-form');
+            Route::post('professionals/{listing}/claim', [ProfessionalDirectoryController::class, 'claim'])->whereNumber('listing')->middleware('throttle:uploads');
+        });
+        Route::middleware('role:professional')->prefix('professional')->group(function () {
+            Route::get('listings', [Professional\ListingController::class, 'index']);
+            Route::put('listings/{listing}', [Professional\ListingController::class, 'update'])->whereNumber('listing');
+            Route::post('listings/{listing}/logo', [Professional\ListingController::class, 'uploadLogo'])
+                ->whereNumber('listing')->defaults('kind', 'image')->middleware('throttle:uploads');
         });
 
         // ── Administrator ──────────────────────────────────────────
         Route::middleware('role:administrator')->prefix('admin')->group(function () {
+            Route::get('overview', [ModerationController::class, 'overview']);
             Route::get('centres', [ModerationController::class, 'centres']);
             Route::post('centres/{centre}/{action}', [ModerationController::class, 'centreAction'])->whereIn('action', ['approve', 'verify', 'unverify', 'suspend']);
             Route::get('credentials', [ModerationController::class, 'credentials']);
             Route::put('credentials/{credential}', [ModerationController::class, 'verifyCredential']);
             Route::get('claims', [ModerationController::class, 'claims']);
             Route::post('claims/{claim}/{action}', [ModerationController::class, 'claimAction'])->whereIn('action', ['approve', 'reject']);
+            Route::get('claims/{claim}/document', [ModerationController::class, 'claimDocument']);
+            Route::get('listings', [ModerationController::class, 'listings']);
+            Route::post('listings/{listing}/{action}', [ModerationController::class, 'listingAction'])->whereIn('action', ['approve', 'reject']);
         });
     });
 });

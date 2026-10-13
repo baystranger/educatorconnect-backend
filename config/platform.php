@@ -7,6 +7,9 @@
 
 return [
 
+    // Times in emails and seeded demo data are expressed in this zone (storage stays UTC).
+    'timezone' => env('APP_DISPLAY_TIMEZONE', 'America/Vancouver'),
+
     'moderation' => [
         // When true, a centre profile goes live as soon as the owner submits it.
         // When false it waits in `pending_review` for an administrator.
@@ -122,6 +125,14 @@ return [
         'school_age' => ['label' => 'School age', 'min_months' => 60, 'max_months' => 156],
     ],
 
+    // Directory filter groups → professional category slugs.
+    'professional_groups' => [
+        'therapy' => ['speech-language-pathologists', 'occupational-therapists', 'behaviour-consultants', 'early-intervention-specialists', 'child-psychologists', 'special-education-teachers'],
+        'business' => ['licensing-consultants', 'childcare-consultants', 'bookkeepers', 'accountants', 'legal-professionals', 'insurance-brokers', 'business-coaches', 'grant-writers', 'recruiters', 'marketing-professionals', 'childcare-website-developers', 'graphic-designers'],
+        'training' => ['trainers-workshop-facilitators', 'curriculum-specialists', 'ece-instructors', 'early-childhood-educators', 'nutritionists'],
+        'design' => ['playground-designers', 'interior-designers', 'cleaning-companies', 'photographers'],
+    ],
+
     'contact_methods' => ['email' => 'Email', 'phone' => 'Phone', 'text' => 'Text message'],
 
     'profile_visibility' => [
@@ -152,6 +163,10 @@ return [
             'applicant_messages' => ['label' => 'Applicant messages', 'description' => 'Replies from educators you contacted', 'default' => [true, true]],
             'profile_review' => ['label' => 'Profile review', 'description' => 'When your profile changes are approved', 'default' => [true, true]],
             'tips' => ['label' => 'Tips & resources', 'description' => 'Occasional guides for centres', 'default' => [false, false]],
+        ],
+        'professional' => [
+            'listing_review' => ['label' => 'Listing review', 'description' => 'When your directory listing or claim is reviewed', 'default' => [true, true]],
+            'tips' => ['label' => 'Tips & resources', 'description' => 'Occasional guides for professionals', 'default' => [false, false]],
         ],
     ],
 ];

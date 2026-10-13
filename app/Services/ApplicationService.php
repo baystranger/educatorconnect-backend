@@ -16,7 +16,10 @@ use Illuminate\Validation\ValidationException;
  */
 class ApplicationService
 {
-    public function apply(Job $job, User $educator, ?string $coverMessage): JobApplication
+    /**
+     * @param  array{video?: bool, certifications?: bool}  $share  what the educator shares beyond their profile
+     */
+    public function apply(Job $job, User $educator, ?string $coverMessage, array $share = []): JobApplication
     {
         if (! $job->isAcceptingApplications()) {
             throw ValidationException::withMessages(['job' => 'This job is no longer accepting applications.']);
@@ -25,7 +28,7 @@ class ApplicationService
             throw ValidationException::withMessages(['profile' => 'Create your educator profile before applying.']);
         }
 
-        return DB::transaction(function () use ($job, $educator, $coverMessage): JobApplication {
+        return DB::transaction(function () use ($job, $educator, $coverMessage, $share): JobApplication {
             $application = JobApplication::query()
                 ->where('job_id', $job->id)
                 ->where('educator_id', $educator->id)
@@ -39,6 +42,10 @@ class ApplicationService
             $attributes = [
                 'cover_message' => $coverMessage,
                 'resume_path' => $educator->educatorProfile->resume_path,
+                'shared_items' => [
+                    'video' => (bool) ($share['video'] ?? true),
+                    'certifications' => (bool) ($share['certifications'] ?? true),
+                ],
                 'status' => 'new',
                 'applied_at' => now(),
                 'status_changed_at' => now(),
@@ -104,7 +111,7 @@ class ApplicationService
                 $application->events()->create([
                     'status' => $status,
                     'note' => $status === 'interview' && $application->interview_at
-                        ? $application->interview_at->timezone(config('app.timezone'))->format('D, M j, g:i A')
+                        ? $application->interview_at->timezone(config('platform.timezone'))->format('D, M j, g:i A')
                         : null,
                     'actor_user_id' => $actor->id,
                 ]);

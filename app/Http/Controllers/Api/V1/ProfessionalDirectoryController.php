@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProfessionalClaimRequest;
 use App\Http\Requests\ProfessionalListingRequest;
+use App\Http\Resources\ProfessionalListingOwnerResource;
 use App\Models\ProfessionalCategory;
 use App\Models\ProfessionalListing;
 use App\Services\MediaStorage;
@@ -37,6 +38,7 @@ class ProfessionalDirectoryController extends Controller
         $filters = $request->validate([
             'keyword' => ['nullable', 'string', 'max:120'],
             'category' => ['nullable', 'string', 'max:120'],
+            'group' => ['nullable', 'in:'.implode(',', array_keys(config('platform.professional_groups')))],
             'location' => ['nullable', 'string', 'max:120'],
             'featured' => ['nullable', 'boolean'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
@@ -54,6 +56,10 @@ class ProfessionalDirectoryController extends Controller
         }
         if (! empty($filters['category'])) {
             $query->whereHas('category', fn (Builder $c) => $c->where('slug', $filters['category']));
+        }
+        if (! empty($filters['group'])) {
+            $slugs = config('platform.professional_groups.'.$filters['group']);
+            $query->whereHas('category', fn (Builder $c) => $c->whereIn('slug', $slugs));
         }
         if (! empty($filters['location'])) {
             $location = '%'.trim(explode(',', $filters['location'])[0]).'%';
@@ -89,7 +95,7 @@ class ProfessionalDirectoryController extends Controller
             'status' => 'pending_review',
         ])->save();
 
-        return $this->created($this->present($listing->load('category')), 'Professional profile submitted for review.');
+        return $this->created(new ProfessionalListingOwnerResource($listing->load('category:id,name,slug')), 'Listing submitted for review.');
     }
 
     public function claim(ProfessionalClaimRequest $request, ProfessionalListing $listing): JsonResponse
@@ -130,6 +136,10 @@ class ProfessionalDirectoryController extends Controller
             'listing_status' => $status,
             'is_featured' => (bool) $listing->is_featured,
             'book_consultation' => (bool) $listing->book_consultation,
+            // Only claimed listings expose a way to get in touch.
+            'contact_url' => $listing->owner_user_id
+                ? ($listing->website ?: ($listing->email ? 'mailto:'.$listing->email : null))
+                : null,
             'logo_url' => app(MediaStorage::class)->url($listing->photo_or_logo_path),
         ];
 

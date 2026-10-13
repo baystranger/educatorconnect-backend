@@ -43,7 +43,7 @@ class ApplicationStatusChangedNotification extends PlatformNotification
         $mail = (new MailMessage)->subject($payload['title'])->line($payload['title']);
 
         if ($this->application->status === 'interview' && $this->application->interview_at) {
-            $mail->line('When: '.$this->application->interview_at->timezone(config('app.timezone'))->format('l, M j \a\t g:i A'));
+            $mail->line('When: '.$this->application->interview_at->timezone(config('platform.timezone'))->format('l, M j \a\t g:i A'));
             if ($this->application->interview_details) {
                 $mail->line($this->application->interview_details);
             }

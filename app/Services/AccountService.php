@@ -16,6 +16,9 @@ class AccountService
     {
         DB::transaction(function () use ($user, $data): void {
             $user->fill(Arr::only($data, ['phone']));
+            if (in_array($user->role, ['professional', 'administrator'], true) && isset($data['name'])) {
+                $user->name = $data['name'];
+            }
 
             if ($user->isEducator() && $user->educatorProfile) {
                 app(EducatorProfileService::class)->update($user, Arr::only($data, [
@@ -85,6 +88,8 @@ class AccountService
                     $centre->forceFill(['is_published' => false])->save();
                 }
             }
+            // Soft-deleted listings leave the directory and come back on reactivation.
+            $user->professionalListings()->delete();
 
             $user->forceFill(['status' => 'deactivated', 'deactivated_at' => now()])->save();
             $user->tokens()->delete();

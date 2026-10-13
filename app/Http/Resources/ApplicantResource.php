@@ -65,7 +65,10 @@ class ApplicantResource extends JsonResource
             return $data;
         }
 
-        $credentials = $profile->credentials->where('kind', 'certification')->pluck('title')->values()->all();
+        $shared = $this->shared_items ?? ['video' => true, 'certifications' => true];
+        $credentials = ($shared['certifications'] ?? true)
+            ? $profile->credentials->where('kind', 'certification')->pluck('title')->values()->all()
+            : [];
         if ($profile->show_criminal_record_status && $profile->criminal_record_check_status === 'completed') {
             $credentials[] = 'Record check';
         }
@@ -76,7 +79,7 @@ class ApplicantResource extends JsonResource
             'availability' => $profile->availability ?? [],
             'available_from' => $profile->available_from?->toDateString(),
             'looking_for' => Format::options('employment_types', $profile->employment_preferences),
-            'introduction_video_url' => $media->url($profile->introduction_video_path),
+            'introduction_video_url' => ($shared['video'] ?? true) ? $media->url($profile->introduction_video_path) : null,
             'has_resume' => (bool) ($this->resume_path ?: $profile->resume_path),
             'resume_name' => $profile->resume_original_name,
             'credentials' => $credentials,

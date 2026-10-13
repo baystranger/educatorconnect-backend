@@ -132,7 +132,6 @@ class CentreDashboardService
                 },
                 'subtitle' => match ($request->type) {
                     'tour' => implode(' · ', array_filter([
-                        $request->requested_at?->timezone(config('app.timezone'))->format('D, M j \a\t g:i A'),
                         $request->child_age ? 'child '.$request->child_age : null,
                         $request->program_of_interest ? $request->program_of_interest.' program' : null,
                     ])),
@@ -143,6 +142,8 @@ class CentreDashboardService
                         'waiting '.$request->created_at->diffForHumans(null, true),
                     ])),
                 },
+                // Formatted by the client in the viewer's timezone, like every other time in the app.
+                'when' => $request->type === 'tour' ? $request->requested_at?->toIso8601String() : null,
                 'badge' => match ($request->type) { 'tour' => 'Tour', 'waitlist' => 'Waitlist', default => 'Unanswered' },
                 'action' => match ($request->type) { 'tour' => 'Confirm', 'waitlist' => 'Add', default => 'Reply' },
                 'href' => '/centre/families?tab='.$request->type.'&request='.$request->id,

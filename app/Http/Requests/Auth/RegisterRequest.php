@@ -29,11 +29,11 @@ class RegisterRequest extends FormRequest
         $role = $this->input('role');
 
         return [
-            'role' => ['required', Rule::in(['educator', 'childcare_centre'])],
+            'role' => ['required', Rule::in(['educator', 'childcare_centre', 'professional'])],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'confirmed', Password::min(10)->numbers()->symbols()],
-            'first_name' => [Rule::requiredIf($role === 'educator'), 'nullable', 'string', 'max:100'],
-            'last_name' => [Rule::requiredIf($role === 'educator'), 'nullable', 'string', 'max:100'],
+            'first_name' => [Rule::requiredIf(in_array($role, ['educator', 'professional'], true)), 'nullable', 'string', 'max:100'],
+            'last_name' => [Rule::requiredIf(in_array($role, ['educator', 'professional'], true)), 'nullable', 'string', 'max:100'],
             'centre_name' => [Rule::requiredIf($role === 'childcare_centre'), 'nullable', 'string', 'max:255'],
             'contact_person' => [Rule::requiredIf($role === 'childcare_centre'), 'nullable', 'string', 'max:255'],
             'phone' => [Rule::requiredIf($role === 'childcare_centre'), 'nullable', 'string', 'max:30'],

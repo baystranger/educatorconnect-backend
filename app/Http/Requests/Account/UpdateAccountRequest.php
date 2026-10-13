@@ -14,10 +14,14 @@ class UpdateAccountRequest extends FormRequest
     public function rules(): array
     {
         $isEducator = $this->user()?->isEducator();
+        // Educators and centres are named by their profile; other roles name the account itself.
+        $namesAccount = in_array($this->user()?->role, ['professional', 'administrator'], true);
 
         return [
-            'first_name' => [$isEducator ? 'sometimes' : 'prohibited', 'required', 'string', 'max:100'],
-            'last_name' => [$isEducator ? 'sometimes' : 'prohibited', 'required', 'string', 'max:100'],
+            // `sometimes` first: absent fields are fine for every role, present ones must belong to it.
+            'first_name' => ['sometimes', $isEducator ? 'required' : 'prohibited', 'string', 'max:100'],
+            'last_name' => ['sometimes', $isEducator ? 'required' : 'prohibited', 'string', 'max:100'],
+            'name' => ['sometimes', $namesAccount ? 'required' : 'prohibited', 'string', 'max:255'],
             'contact_person' => ['sometimes', 'nullable', 'string', 'max:150'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:30', 'regex:/^[0-9+().\-\s]{7,30}$/'],
             'city' => ['sometimes', 'nullable', 'string', 'max:100'],

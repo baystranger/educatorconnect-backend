@@ -306,7 +306,7 @@ class DemoSeeder extends Seeder
             'bb-ece' => ['bright-beginnings', 'ECE — Preschool room', 'early_childhood_educator', 'full_time', 1, 24, 28, 9, 64],
             'bb-casual' => ['bright-beginnings', 'Casual ECE Assistant', 'ece_assistant', 'casual', 2, 22, null, 7, 51],
             'sp-ece' => ['sunny-park', 'Early Childhood Educator', 'early_childhood_educator', 'full_time', 1, 25, 29, 40, 300],
-            'cs-supervisor' => ['cedar-moss', 'Centre Supervisor', 'supervisor_manager', 'full_time', 1, 32, 36, 12, 90],
+            'hh-inclusion' => ['happy-hearts', 'Inclusion Support Educator', 'inclusion_support', 'contract', 1, 27, 31, 12, 90],
             'kh-it' => ['kids-harbour', 'Infant / Toddler Educator', 'infant_toddler_educator', 'part_time', 1, 26, null, 6, 45],
         ];
 
@@ -347,7 +347,7 @@ class DemoSeeder extends Seeder
     private function applications(array $jobs, array $educators): void
     {
         $priya = $educators['priya'];
-        $nextThursday = now()->next(Carbon::THURSDAY)->setTime(10, 0);
+        $nextThursday = Carbon::now(config('platform.timezone'))->next(Carbon::THURSDAY)->setTime(10, 0)->utc();
 
         $make = function (Job $job, User $educator, string $status, Carbon $applied, array $extra = []) {
             $application = JobApplication::create(array_merge([
@@ -402,13 +402,13 @@ class DemoSeeder extends Seeder
 
     private function families(ChildcareCentre $centre): void
     {
-        $thursday = now()->next(Carbon::THURSDAY);
+        $thursday = Carbon::now(config('platform.timezone'))->next(Carbon::THURSDAY);
         $requests = [
             ['inquiry', 'Amira M.', 'amira.m@example.com', '(604) 555-0144', '9 months', 'Infant', 'January 2027', 'email', 'Hi! Do you expect any infant spaces opening in January? We live close by and would love to visit.', null, 1],
             ['inquiry', 'David S.', 'david.s@example.com', null, '3 yrs', 'Preschool', 'September 2027', 'email', 'What does a typical day look like for the part-day preschool program?', null, 2],
             ['inquiry', 'Linh T.', 'linh.t@example.com', null, '20 mo', 'Toddler', 'As soon as possible', 'phone', 'Is your centre part of the $10-a-day program?', null, 10],
-            ['tour', 'Chen family', 'chen@example.com', '(604) 555-0188', '2 yrs', 'Toddler', 'As soon as possible', 'email', 'We would love to see the toddler room.', $thursday->copy()->setTime(10, 0), 1],
-            ['tour', 'Okafor family', 'okafor@example.com', null, '11 mo', 'Infant', 'January 2027', 'email', null, $thursday->copy()->setTime(15, 30), 1],
+            ['tour', 'Chen family', 'chen@example.com', '(604) 555-0188', '2 yrs', 'Toddler', 'As soon as possible', 'email', 'We would love to see the toddler room.', $thursday->copy()->setTime(10, 0)->utc(), 1],
+            ['tour', 'Okafor family', 'okafor@example.com', null, '11 mo', 'Infant', 'January 2027', 'email', null, $thursday->copy()->setTime(15, 30)->utc(), 1],
             ['waitlist', 'Rosa S.', 'rosa.s@example.com', null, '2 yrs 4 mo', 'Preschool', 'September 2027', 'email', null, null, 3],
             ['waitlist', 'Noah P.', 'noah.p@example.com', null, 'Expecting', 'Infant', 'September 2027', 'email', null, null, 6],
         ];

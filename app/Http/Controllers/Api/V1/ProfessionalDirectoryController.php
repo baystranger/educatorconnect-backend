@@ -136,10 +136,13 @@ class ProfessionalDirectoryController extends Controller
             'listing_status' => $status,
             'is_featured' => (bool) $listing->is_featured,
             'book_consultation' => (bool) $listing->book_consultation,
-            // Only claimed listings expose a way to get in touch.
-            'contact_url' => $listing->owner_user_id
-                ? ($listing->website ?: ($listing->email ? 'mailto:'.$listing->email : null))
-                : null,
+            // Only claimed listings expose a way to get in touch: website, then email, then phone.
+            'contact_url' => $status === 'unclaimed' ? null : match (true) {
+                (bool) $listing->website => $listing->website,
+                (bool) $listing->email => 'mailto:'.$listing->email,
+                (bool) $listing->phone => 'tel:'.preg_replace('/[^\d+]/', '', $listing->phone),
+                default => null,
+            },
             'logo_url' => app(MediaStorage::class)->url($listing->photo_or_logo_path),
         ];
 
@@ -149,8 +152,8 @@ class ProfessionalDirectoryController extends Controller
                 'services_offered' => $listing->services_offered ?? [],
                 'credentials' => $listing->credentials ?? [],
                 'website' => $listing->website,
-                'email' => $listing->owner_user_id ? $listing->email : null,
-                'phone' => $listing->owner_user_id ? $listing->phone : null,
+                'email' => $status === 'unclaimed' ? null : $listing->email,
+                'phone' => $status === 'unclaimed' ? null : $listing->phone,
                 'social_links' => $listing->social_links ?? [],
             ];
         }

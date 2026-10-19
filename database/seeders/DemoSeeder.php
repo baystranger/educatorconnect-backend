@@ -465,6 +465,8 @@ class DemoSeeder extends Seeder
                 'professional_category_id' => $category($categoryName), 'name' => $name, 'professional_title' => $title,
                 'description' => $description, 'city' => $city, 'province' => 'British Columbia', 'postal_code' => 'V5H 0A1',
                 'service_area' => $area, 'book_consultation' => $consult,
+                // Claimed listings carry contact details, so the directory shows Contact / Book a consultation.
+                'email' => $status === 'unclaimed' ? null : 'hello@'.Str::slug($name, '').'.example.ca',
             ]);
             $listing->forceFill(['slug' => Str::slug($name), 'status' => $status, 'is_verified' => $verified, 'is_featured' => $featured])->save();
         }

@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
+use App\Http\Requests\Auth\SocialRegisterRequest;
 use App\Http\Resources\AuthUserResource;
 use App\Models\SocialAccount;
 use App\Models\User;
@@ -102,8 +103,9 @@ class AuthController extends Controller
         ]);
 
         $frontendUrl = rtrim(config('frontend.url'), '/');
+
         if (! config("services.{$provider}.client_id") || ! config("services.{$provider}.client_secret")) {
-            return redirect()->away($frontendUrl.($data['intent'] === 'connect' ? '/settings?section=security&oauth_error=unavailable' : '/signin?oauth_error=unavailable'));
+            return redirect()->away($this->oauthErrorBase($data['intent'], $data['role'] ?? null).'unavailable');
         }
 
         $connectUserId = null;
@@ -130,7 +132,7 @@ class AuthController extends Controller
         $frontendUrl = rtrim(config('frontend.url'), '/');
         $flow = $request->session()->pull('oauth_flow');
         $isConnect = ($flow['intent'] ?? null) === 'connect';
-        $errorBase = $isConnect ? $frontendUrl.'/settings?section=security&oauth_error=' : $frontendUrl.'/signin?oauth_error=';
+        $errorBase = $this->oauthErrorBase($flow['intent'] ?? 'login', $flow['role'] ?? null);
 
         if ($request->filled('error')) {
             return redirect()->away($errorBase.'cancelled');
@@ -156,6 +158,24 @@ class AuthController extends Controller
             }
 
             $user = $this->auth->authenticateWithProvider($provider, $socialUser, $flow['role'] ?? null, $flow['intent']);
+
+            // New identity on sign-up: return to the sign-up form, connected, to add location details.
+            // The token and the name/email to show travel in the URL fragment: the page renders
+            // without another API round trip, and fragments never reach server or proxy logs.
+            if (! $user) {
+                [$token, $pending] = $this->auth->startPendingSignup($provider, $socialUser, $flow['role'] ?? null);
+
+                return redirect()->away($frontendUrl.'/signup?type='.$this->signupType($flow['role'] ?? null).'#'.http_build_query([
+                    'oauth' => $token,
+                    'provider' => $pending->provider,
+                    'role' => $pending->role,
+                    'email' => $pending->email,
+                    'name' => $pending->name,
+                    'first_name' => $pending->first_name,
+                    'last_name' => $pending->last_name,
+                    'expires_at' => $pending->expires_at->toIso8601String(),
+                ], '', '&', PHP_QUERY_RFC3986));
+            }
         } catch (ValidationException|AuthorizationException) {
             return redirect()->away($errorBase.'account_conflict');
         }
@@ -163,6 +183,59 @@ class AuthController extends Controller
         $code = $this->auth->createOAuthCode($user);
 
         return redirect()->away($frontendUrl.'/auth/callback?code='.urlencode($code));
+    }
+
+    /** The provider profile behind a pending Google/LinkedIn sign-up (shown as "Connected with …"). */
+    public function pendingSignup(Request $request): JsonResponse
+    {
+        $data = $request->validate(['token' => ['required', 'string', 'size:64']]);
+        $pending = $this->auth->findPendingSignup($data['token']);
+
+        if (! $pending) {
+            throw ValidationException::withMessages([
+                'token' => 'Your Google or LinkedIn connection expired. Please connect again.',
+            ]);
+        }
+
+        return $this->ok([
+            'provider' => $pending->provider,
+            'role' => $pending->role,
+            'email' => $pending->email,
+            'name' => $pending->name,
+            'first_name' => $pending->first_name,
+            'last_name' => $pending->last_name,
+            'expires_at' => $pending->expires_at->toIso8601String(),
+        ]);
+    }
+
+    public function registerSocial(SocialRegisterRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+        $user = $this->auth->completeSocialSignup($data['token'], $data);
+
+        return $this->sessionResponse($request, $user, 'Account created successfully.', 201, $data['device_name'] ?? 'web');
+    }
+
+    /** Where an OAuth failure lands: Settings for connect, back to the sign-up form for sign-up, otherwise sign-in. */
+    private function oauthErrorBase(string $intent, ?string $role): string
+    {
+        $frontendUrl = rtrim(config('frontend.url'), '/');
+
+        return match ($intent) {
+            'connect' => $frontendUrl.'/settings?section=security&oauth_error=',
+            'signup' => $frontendUrl.'/signup?type='.$this->signupType($role).'&oauth_error=',
+            default => $frontendUrl.'/signin?oauth_error=',
+        };
+    }
+
+    /** API role → the sign-up page's ?type= value. */
+    private function signupType(?string $role): string
+    {
+        return match ($role) {
+            'childcare_centre' => 'centre',
+            'professional' => 'professional',
+            default => 'educator',
+        };
     }
 
     public function disconnectProvider(Request $request, string $provider): JsonResponse

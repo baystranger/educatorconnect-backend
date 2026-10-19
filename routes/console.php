@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\OAuthLoginCode;
+use App\Models\OAuthPendingSignup;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
@@ -50,9 +51,21 @@ Artisan::command('accounts:purge-deactivated', function () {
 
 Artisan::command('auth:prune-oauth-codes', function () {
     $deleted = OAuthLoginCode::query()->where('expires_at', '<', now()->subHour())->delete();
-    $this->info("Pruned {$deleted} expired OAuth code(s).");
-})->purpose('Delete expired single-use OAuth login codes');
+    $pending = OAuthPendingSignup::query()->where('expires_at', '<', now()->subHour())->delete();
+    $this->info("Pruned {$deleted} expired OAuth code(s) and {$pending} pending sign-up(s).");
+})->purpose('Delete expired single-use OAuth login codes and pending social sign-ups');
 
 Schedule::command('accounts:purge-deactivated')->dailyAt('03:00');
 Schedule::command('auth:prune-oauth-codes')->hourly();
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
+
+// Emails and notifications are queued (QUEUE_CONNECTION=database). Shared hosting such as
+// cPanel can't keep a long-running worker alive, so the scheduler drains the queue every
+// minute: one cron entry (`* * * * * php artisan schedule:run`) is all a server needs.
+// With a dedicated worker (Supervisor, `php artisan queue:work`) set QUEUE_VIA_SCHEDULER=false.
+if (env('QUEUE_VIA_SCHEDULER', true)) {
+    Schedule::command('queue:work --stop-when-empty --tries=3 --backoff=30 --max-time=50')
+        ->everyMinute()
+        ->withoutOverlapping(5)
+        ->runInBackground();
+}

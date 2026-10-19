@@ -115,4 +115,17 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Logo
+    |--------------------------------------------------------------------------
+    |
+    | Absolute URL of the logo in the email header. Email clients load it from
+    | the internet, so it must be public. Defaults to APP_URL/educator-connect-logo.png
+    | (the frontend build serves the same file from the site root in production).
+    |
+    */
+
+    'logo_url' => env('MAIL_LOGO_URL'),
+
 ];

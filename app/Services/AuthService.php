@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ChildcareCentre;
 use App\Models\EducatorProfile;
 use App\Models\OAuthLoginCode;
+use App\Models\OAuthPendingSignup;
 use App\Models\SocialAccount;
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
@@ -85,80 +86,190 @@ class AuthService
         }
     }
 
+    /**
+     * Signs in the account linked to this provider identity. Returns null on a sign-up
+     * for an identity we haven't seen: the caller then starts a pending sign-up so the
+     * person can add their location details before the account is created.
+     */
     public function authenticateWithProvider(
         string $provider,
         SocialiteUser $socialUser,
         ?string $role,
         string $intent,
-    ): User {
-        return DB::transaction(function () use ($provider, $socialUser, $role, $intent): User {
-            $user = $this->users->findByOAuthIdentity($provider, (string) $socialUser->getId());
+    ): ?User {
+        $user = $this->users->findByOAuthIdentity($provider, (string) $socialUser->getId());
 
-            if ($user) {
-                if ($role && $user->role !== $role) {
-                    throw ValidationException::withMessages([
-                        'role' => 'This social account is already registered for a different account type.',
-                    ]);
+        if ($user) {
+            if ($role && $user->role !== $role) {
+                throw ValidationException::withMessages([
+                    'role' => 'This social account is already registered for a different account type.',
+                ]);
+            }
+
+            $this->ensureCanSignIn($user);
+            $user->forceFill(['last_login_at' => now()])->save();
+
+            return $user;
+        }
+
+        if ($intent === 'login') {
+            throw ValidationException::withMessages([
+                'email' => 'No account is connected to this social profile. Sign up first.',
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Holds the provider profile for up to 30 minutes and returns the single-use token
+     * the sign-up page uses to finish the account, with the pending record.
+     *
+     * @return array{0: string, 1: OAuthPendingSignup}
+     */
+    public function startPendingSignup(string $provider, SocialiteUser $socialUser, ?string $role): array
+    {
+        $email = strtolower(trim((string) $socialUser->getEmail()));
+        if ($email === '') {
+            throw ValidationException::withMessages([
+                'email' => 'The social provider did not return an email address.',
+            ]);
+        }
+
+        if ($this->users->findByEmail($email)) {
+            throw ValidationException::withMessages([
+                'email' => 'This email already has an account. Sign in with that account before connecting a social provider.',
+            ]);
+        }
+
+        $raw = $socialUser->getRaw();
+        $name = trim((string) ($socialUser->getName() ?: $socialUser->getNickname()));
+        $name = $name !== '' ? $name : Str::before($email, '@');
+        $nameParts = preg_split('/\s+/', $name, 2) ?: [$name];
+
+        $plainTextToken = Str::random(64);
+
+        $pending = OAuthPendingSignup::create([
+            'token_hash' => hash('sha256', $plainTextToken),
+            'provider' => $provider,
+            'provider_user_id' => (string) $socialUser->getId(),
+            'email' => $email,
+            'name' => Str::limit($name, 255, ''),
+            'first_name' => Str::limit((string) ($raw['given_name'] ?? $raw['localizedFirstName'] ?? $nameParts[0]), 100, ''),
+            'last_name' => Str::limit((string) ($raw['family_name'] ?? $raw['localizedLastName'] ?? $nameParts[1] ?? ''), 100, ''),
+            'role' => $role ?? 'educator',
+            'expires_at' => now()->addMinutes(30),
+        ]);
+
+        return [$plainTextToken, $pending];
+    }
+
+    /** A still-usable pending sign-up for the token, or null. */
+    public function findPendingSignup(string $plainTextToken): ?OAuthPendingSignup
+    {
+        $pending = OAuthPendingSignup::query()->where('token_hash', hash('sha256', $plainTextToken))->first();
+
+        return $pending?->isUsable() ? $pending : null;
+    }
+
+    /**
+     * Creates the account for a pending Google/LinkedIn sign-up. Like a form sign-up, the
+     * account starts unverified and a verification email is sent.
+     */
+    public function completeSocialSignup(string $plainTextToken, array $data): User
+    {
+        $created = false;
+
+        $user = DB::transaction(function () use ($plainTextToken, $data, &$created): User {
+            $pending = OAuthPendingSignup::query()
+                ->where('token_hash', hash('sha256', $plainTextToken))
+                ->lockForUpdate()
+                ->first();
+
+            // A retry after a lost response: the account exists, so sign the person in again
+            // (its verification email already went out).
+            if ($pending?->consumed_at && $pending->user && $pending->expires_at->isFuture()) {
+                $this->ensureCanSignIn($pending->user);
+
+                return $pending->user;
+            }
+
+            if (! $pending || ! $pending->isUsable()) {
+                throw ValidationException::withMessages([
+                    'token' => 'Your Google or LinkedIn connection expired. Please connect again.',
+                ]);
+            }
+
+            if ($pending->role === 'childcare_centre') {
+                $missing = array_filter(
+                    ['centre_name' => 'centre name', 'phone' => 'phone number', 'address' => 'street address'],
+                    fn ($label, $field) => blank($data[$field] ?? null),
+                    ARRAY_FILTER_USE_BOTH,
+                );
+                if ($missing) {
+                    throw ValidationException::withMessages(
+                        array_map(fn ($label) => "Please enter your {$label}.", $missing),
+                    );
                 }
-
-                $this->ensureCanSignIn($user);
-                $user->forceFill(['last_login_at' => now()])->save();
-
-                return $user;
             }
 
-            if ($intent === 'login') {
+            if ($this->users->findByEmail($pending->email)) {
                 throw ValidationException::withMessages([
-                    'email' => 'No account is connected to this social profile. Sign up first.',
+                    'email' => 'This email already has an account. Please sign in instead.',
                 ]);
             }
 
-            $email = $socialUser->getEmail();
-            if (! $email) {
+            if (SocialAccount::query()->where('provider', $pending->provider)->where('provider_user_id', $pending->provider_user_id)->exists()) {
                 throw ValidationException::withMessages([
-                    'email' => 'The social provider did not return an email address.',
+                    'token' => 'This '.ucfirst($pending->provider).' account is already connected to an Educator Connect account. Please sign in instead.',
                 ]);
             }
 
-            if ($this->users->findByEmail(strtolower($email))) {
-                throw ValidationException::withMessages([
-                    'email' => 'This email already has an account. Sign in with that account before connecting a social provider.',
-                ]);
-            }
+            $pending->forceFill(['consumed_at' => now()])->save();
 
-            $name = trim((string) ($socialUser->getName() ?: $socialUser->getNickname()));
-            $name = $name !== '' ? $name : Str::before($email, '@');
-            $role ??= 'educator';
-            $nameParts = preg_split('/\s+/', $name, 2) ?: [$name];
+            $isCentre = $pending->role === 'childcare_centre';
+            $personName = $pending->name ?: trim($pending->first_name.' '.$pending->last_name);
 
             $user = $this->users->create([
-                'name' => $role === 'childcare_centre' ? $name."'s Childcare Centre" : $name,
-                'email' => strtolower($email),
+                'name' => $isCentre ? $data['centre_name'] : $personName,
+                'email' => $pending->email,
+                'phone' => $data['phone'] ?? null,
                 'password' => null,
-                'role' => $role,
+                'role' => $pending->role,
                 'status' => 'active',
-                'oauth_provider' => $provider,
-                'oauth_provider_id' => (string) $socialUser->getId(),
-                'email_verified_at' => now(),
+                'oauth_provider' => $pending->provider,
+                'oauth_provider_id' => $pending->provider_user_id,
+                'email_verified_at' => null,
                 'last_login_at' => now(),
             ]);
 
-            $this->linkProvider($user, $provider, $socialUser);
-            $this->assignRole($user, $role);
+            $this->attachProvider($user, $pending->provider, $pending->provider_user_id, $pending->email);
+            $this->assignRole($user, $pending->role);
             $this->createRoleProfile($user, [
-                'first_name' => $nameParts[0],
-                'last_name' => $nameParts[1] ?? '',
-                'centre_name' => $name."'s Childcare Centre",
-                'contact_person' => $name,
-                'city' => '',
-                'province' => '',
-                'postal_code' => '',
-                'country' => 'Canada',
-                'address' => '',
+                'first_name' => $pending->first_name ?: Str::before($personName, ' '),
+                'last_name' => $pending->last_name ?? '',
+                'centre_name' => $data['centre_name'] ?? null,
+                'contact_person' => $personName,
+                'phone' => $data['phone'] ?? null,
+                'address' => $data['address'] ?? null,
+                'city' => $data['city'],
+                'province' => $data['province'],
+                'postal_code' => $data['postal_code'],
+                'country' => $data['country'],
+                'is_student' => $data['is_student'] ?? false,
             ]);
 
-            return $user;
+            $pending->forceFill(['user_id' => $user->id])->save();
+            $created = true;
+
+            return $user->refresh();
         });
+
+        if ($created) {
+            $user->sendEmailVerificationNotification();
+        }
+
+        return $user;
     }
 
     /**
@@ -166,9 +277,14 @@ class AuthService
      */
     public function linkProvider(User $user, string $provider, SocialiteUser $socialUser): SocialAccount
     {
+        return $this->attachProvider($user, $provider, (string) $socialUser->getId(), $socialUser->getEmail());
+    }
+
+    private function attachProvider(User $user, string $provider, string $providerUserId, ?string $email): SocialAccount
+    {
         $existing = SocialAccount::query()
             ->where('provider', $provider)
-            ->where('provider_user_id', (string) $socialUser->getId())
+            ->where('provider_user_id', $providerUserId)
             ->first();
 
         if ($existing && (int) $existing->user_id !== (int) $user->id) {
@@ -179,7 +295,7 @@ class AuthService
 
         return SocialAccount::updateOrCreate(
             ['user_id' => $user->id, 'provider' => $provider],
-            ['provider_user_id' => (string) $socialUser->getId(), 'email' => $socialUser->getEmail()],
+            ['provider_user_id' => $providerUserId, 'email' => $email],
         );
     }
 

@@ -25,7 +25,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
             Route::post('reset-password', [AuthController::class, 'resetPassword']);
             Route::post('oauth/exchange', [AuthController::class, 'exchangeOAuthCode']);
+            Route::post('register/social', [AuthController::class, 'registerSocial']);
         });
+
+        // Read-only lookup by an unguessable 64-character token; kept off the tight auth limit
+        // so a few quick Google/LinkedIn retries don't lock the person out of their own sign-up.
+        Route::post('oauth/pending', [AuthController::class, 'pendingSignup']);
 
         // Guests get `data: null` (not 401) so first-party page loads stay quiet.
         Route::get('session', [AuthController::class, 'session']);

@@ -176,6 +176,37 @@ class HiringFlowTest extends TestCase
         $this->getJson('/api/v1/jobs/'.$job->slug)->assertNotFound()->assertJsonPath('success', false);
     }
 
+    public function test_unverified_centre_cannot_publish_a_job_by_any_route(): void
+    {
+        $owner = $this->centreOwner();
+        $owner->forceFill(['email_verified_at' => null])->save();
+
+        // Create with publish: refused before anything is saved.
+        $this->actingAs($owner)->postJson('/api/v1/centre/jobs', $this->jobPayload(['publish' => true]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('publish');
+        $this->assertSame(0, Job::count());
+
+        // Drafts are still allowed.
+        $draft = $this->actingAs($owner)->postJson('/api/v1/centre/jobs', $this->jobPayload())
+            ->assertCreated()->assertJsonPath('data.status', 'draft')->json('data.id');
+
+        // Update with publish: refused, the job stays a draft.
+        $this->actingAs($owner)->putJson("/api/v1/centre/jobs/{$draft}", $this->jobPayload(['publish' => true]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('publish');
+        $this->assertSame('draft', Job::findOrFail($draft)->status);
+
+        // The publish action: refused.
+        $this->actingAs($owner)->postJson("/api/v1/centre/jobs/{$draft}/publish")->assertForbidden();
+        $this->assertSame('draft', Job::findOrFail($draft)->status);
+
+        // Once verified, the same draft publishes.
+        $owner->markEmailAsVerified();
+        $this->actingAs($owner)->putJson("/api/v1/centre/jobs/{$draft}", $this->jobPayload(['publish' => true]))
+            ->assertOk()->assertJsonPath('data.status', 'published');
+    }
+
     private function publishedJob($owner): Job
     {
         $id = $this->actingAs($owner)->postJson('/api/v1/centre/jobs', $this->jobPayload(['publish' => true]))

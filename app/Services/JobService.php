@@ -23,6 +23,10 @@ class JobService
 
     public function create(ChildcareCentre $centre, array $data, bool $publish): Job
     {
+        if ($publish) {
+            $this->ensureOwnerVerified($centre);
+        }
+
         return DB::transaction(function () use ($centre, $data, $publish): Job {
             $attributes = $this->attributes($centre, $data);
             $attributes['childcare_centre_id'] = $centre->id;
@@ -37,6 +41,10 @@ class JobService
 
     public function update(Job $job, array $data, bool $publish): Job
     {
+        if ($publish && $job->status !== JobStatus::PUBLISHED->value) {
+            $this->ensureOwnerVerified($job->centre);
+        }
+
         return DB::transaction(function () use ($job, $data, $publish): Job {
             $job = $this->jobs->update($job, $this->attributes($job->centre, $data));
 
@@ -46,6 +54,9 @@ class JobService
 
     public function publish(Job $job): Job
     {
+        // Every way a job goes live (create, update, publish/reopen) passes through here.
+        $this->ensureOwnerVerified($job->centre);
+
         $missing = $this->missingForPublish($job);
         if ($missing) {
             throw ValidationException::withMessages(['publish' => 'Add '.implode(', ', $missing).' before publishing.']);
@@ -59,6 +70,19 @@ class JobService
         ])->save();
 
         return $job->refresh();
+    }
+
+    /**
+     * Only centres with a verified email can publish. Checked before anything is saved,
+     * so a refused publish never leaves a half-created job behind.
+     */
+    private function ensureOwnerVerified(ChildcareCentre $centre): void
+    {
+        if (! $centre->owner?->hasVerifiedEmail()) {
+            throw ValidationException::withMessages([
+                'publish' => 'Verify your email address before publishing a job. You can still save it as a draft.',
+            ]);
+        }
     }
 
     public function close(Job $job): Job

@@ -33,7 +33,9 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Private files (résumés, claim documents) are only streamed by authorised
+            // controllers. /storage is served by PublicFileController for public media.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

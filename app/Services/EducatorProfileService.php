@@ -62,7 +62,11 @@ class EducatorProfileService
             $profile->update($attributes);
 
             if (isset($attributes['first_name']) || isset($attributes['last_name'])) {
-                $user->forceFill(['name' => $profile->fullName()])->save();
+                $user->forceFill([
+                    'name' => $profile->fullName(),
+                    'first_name' => $profile->first_name,
+                    'last_name' => $profile->last_name,
+                ])->save();
             }
 
             if (isset($data['student']) && is_array($data['student'])) {

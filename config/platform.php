@@ -24,7 +24,7 @@ return [
         'disk' => env('MEDIA_DISK', 'public'),
         'private_disk' => env('PRIVATE_MEDIA_DISK', 'local'),
         'image_max_kb' => 10240,
-        'video_max_kb' => 204800,
+        'video_max_kb' => 25600, // 25 MB
         'resume_max_kb' => 5120,
         'document_max_kb' => 10240,
     ],

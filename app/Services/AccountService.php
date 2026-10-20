@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Support\ApplicationStages;
+use App\Support\PersonName;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -16,8 +17,21 @@ class AccountService
     {
         DB::transaction(function () use ($user, $data): void {
             $user->fill(Arr::only($data, ['phone']));
-            if (in_array($user->role, ['professional', 'administrator'], true) && isset($data['name'])) {
-                $user->name = $data['name'];
+            if (in_array($user->role, ['professional', 'administrator'], true)) {
+                // These roles are named by the person: first/last name win, a single `name` is split.
+                if (isset($data['first_name']) || isset($data['last_name'])) {
+                    $user->first_name = $data['first_name'] ?? $user->first_name;
+                    $user->last_name = $data['last_name'] ?? $user->last_name;
+                    $user->name = PersonName::join($user->first_name, $user->last_name);
+                } elseif (isset($data['name'])) {
+                    $user->name = $data['name'];
+                    [$user->first_name, $user->last_name] = PersonName::split($data['name']);
+                }
+            }
+            if ($user->isCentre() && (isset($data['first_name']) || isset($data['last_name']))) {
+                // The centre account's `name` is the centre; only the holder's name changes.
+                $user->first_name = $data['first_name'] ?? $user->first_name;
+                $user->last_name = $data['last_name'] ?? $user->last_name;
             }
 
             if ($user->isEducator() && $user->educatorProfile) {
@@ -108,7 +122,7 @@ class AccountService
 
         return [
             'exported_at' => now()->toIso8601String(),
-            'account' => Arr::only($user->toArray(), ['id', 'name', 'email', 'phone', 'role', 'status', 'email_verified_at', 'created_at']),
+            'account' => Arr::only($user->toArray(), ['id', 'name', 'first_name', 'last_name', 'email', 'phone', 'role', 'status', 'email_verified_at', 'created_at']),
             'sign_in_methods' => $user->socialAccounts->map->only(['provider', 'email', 'created_at']),
             'educator_profile' => $user->educatorProfile
                 ? Arr::except($user->educatorProfile->toArray(), ['resume_path', 'photo_path', 'introduction_video_path', 'deleted_at'])

@@ -40,8 +40,13 @@ class MediaUploadRequest extends FormRequest
 
     public function messages(): array
     {
+        $kind = $this->route('kind') ?? $this->input('kind', 'image');
+        $maxMb = (int) round(config('platform.uploads.'.match ($kind) {
+            'video' => 'video_max_kb', 'resume' => 'resume_max_kb', 'document' => 'document_max_kb', default => 'image_max_kb',
+        }) / 1024);
+
         return [
-            'file.max' => 'This file is too large.',
+            'file.max' => ($kind === 'video' ? 'Videos' : 'Files').' must be '.$maxMb.' MB or smaller.',
             'file.mimetypes' => 'Upload an MP4, MOV or WebM video.',
             'file.mimes' => 'This file type is not supported.',
             'file.dimensions' => 'Images must be at least 200 × 200 pixels.',

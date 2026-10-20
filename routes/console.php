@@ -3,6 +3,7 @@
 use App\Models\OAuthLoginCode;
 use App\Models\OAuthPendingSignup;
 use App\Models\User;
+use App\Support\PersonName;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schedule;
@@ -18,8 +19,11 @@ Artisan::command('app:create-admin {email} {--name=Administrator}', function (st
     }
 
     $user = User::query()->firstOrNew(['email' => Str::lower($email)]);
+    [$firstName, $lastName] = PersonName::split($this->option('name'));
     $user->forceFill([
         'name' => $this->option('name'),
+        'first_name' => $firstName ?: null,
+        'last_name' => $lastName ?: null,
         'password' => Hash::make($password),
         'role' => 'administrator',
         'status' => 'active',

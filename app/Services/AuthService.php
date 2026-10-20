@@ -9,6 +9,7 @@ use App\Models\OAuthPendingSignup;
 use App\Models\SocialAccount;
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Support\PersonName;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Support\Facades\DB;
@@ -26,12 +27,16 @@ class AuthService
     {
         $user = DB::transaction(function () use ($data): User {
             $isCentre = $data['role'] === 'childcare_centre';
-            $displayName = $isCentre
-                ? $data['centre_name']
-                : trim($data['first_name'].' '.$data['last_name']);
+            // A centre's account holder is its contact person unless first/last name are sent.
+            [$firstName, $lastName] = filled($data['first_name'] ?? null)
+                ? [$data['first_name'], $data['last_name'] ?? '']
+                : PersonName::split((string) ($data['contact_person'] ?? ''));
+            $displayName = $isCentre ? $data['centre_name'] : PersonName::join($firstName, $lastName);
 
             $user = $this->users->create([
                 'name' => $displayName,
+                'first_name' => $firstName ?: null,
+                'last_name' => $lastName ?: null,
                 'email' => strtolower($data['email']),
                 'phone' => $data['phone'] ?? null,
                 'password' => $data['password'],
@@ -229,9 +234,12 @@ class AuthService
 
             $isCentre = $pending->role === 'childcare_centre';
             $personName = $pending->name ?: trim($pending->first_name.' '.$pending->last_name);
+            [$splitFirst, $splitLast] = PersonName::split($personName);
 
             $user = $this->users->create([
                 'name' => $isCentre ? $data['centre_name'] : $personName,
+                'first_name' => ($pending->first_name ?: $splitFirst) ?: null,
+                'last_name' => ($pending->last_name ?: $splitLast) ?: null,
                 'email' => $pending->email,
                 'phone' => $data['phone'] ?? null,
                 'password' => null,

@@ -6,8 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProfessionalListingOwnerResource;
 use App\Models\ChildcareCentre;
 use App\Models\EducatorCredential;
+use App\Models\Job;
+use App\Models\JobApplication;
+use App\Models\ParentRequest;
 use App\Models\ProfessionalClaim;
 use App\Models\ProfessionalListing;
+use App\Models\User;
 use App\Services\AdminModerationService;
 use App\Services\MediaStorage;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,6 +36,15 @@ class ModerationController extends Controller
             'credentials_pending' => EducatorCredential::query()->where('kind', 'certification')->where('verification_status', 'pending')->count(),
             'claims_pending' => ProfessionalClaim::query()->where('status', 'pending')->count(),
             'listings_pending' => ProfessionalListing::query()->where('status', 'pending_review')->count(),
+            'totals' => [
+                'users' => User::query()->count(),
+                'users_by_role' => User::query()->selectRaw('role, count(*) as total')->groupBy('role')->pluck('total', 'role'),
+                'centres_live' => ChildcareCentre::query()->publiclyVisible()->count(),
+                'jobs_open' => Job::query()->published()->count(),
+                'applications' => JobApplication::query()->count(),
+                'family_requests' => ParentRequest::query()->count(),
+                'professionals_live' => ProfessionalListing::query()->whereIn('status', ['unclaimed', 'claimed_verified'])->count(),
+            ],
         ]);
     }
 

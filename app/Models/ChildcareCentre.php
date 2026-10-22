@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\Website;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -44,6 +46,8 @@ class ChildcareCentre extends Model
             'published_at' => 'datetime',
         ];
     }
+
+    protected function website(): Attribute { return Website::attribute(); }
 
     public function owner() { return $this->belongsTo(User::class, 'owner_user_id'); }
     public function programs() { return $this->hasMany(CentreProgram::class)->orderBy('sort_order')->orderBy('id'); }

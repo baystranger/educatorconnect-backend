@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\Website;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ProfessionalListingRequest extends FormRequest
@@ -28,12 +29,17 @@ class ProfessionalListingRequest extends FormRequest
             'province' => ['required', 'string', 'max:120'],
             'postal_code' => ['required', 'string', 'max:20'],
             'country' => ['nullable', 'string', 'max:100'],
-            'website' => ['nullable', 'url', 'max:255'],
+            'website' => Website::rules(),
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'social_links' => ['nullable', 'array', 'max:6'],
             'social_links.*' => ['url', 'max:255'],
             'book_consultation' => ['nullable', 'boolean'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['website.regex' => 'Enter a valid website address.'];
     }
 }

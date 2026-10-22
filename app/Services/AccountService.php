@@ -13,9 +13,20 @@ use Illuminate\Validation\ValidationException;
 
 class AccountService
 {
+    private const AUDITED_FIELDS = ['name', 'first_name', 'last_name', 'phone'];
+
     public function updateDetails(User $user, array $data): User
     {
+        $before = $user->only(self::AUDITED_FIELDS);
+
         DB::transaction(function () use ($user, $data): void {
+            if ($user->isEducator() && $user->educatorProfile) {
+                // The profile service renames the user too and reloads it, so it runs first.
+                app(EducatorProfileService::class)->update($user, Arr::only($data, [
+                    'first_name', 'last_name', 'city', 'province', 'postal_code', 'country',
+                ]));
+            }
+
             $user->fill(Arr::only($data, ['phone']));
             if (in_array($user->role, ['professional', 'administrator'], true)) {
                 // These roles are named by the person: first/last name win, a single `name` is split.
@@ -28,25 +39,31 @@ class AccountService
                     [$user->first_name, $user->last_name] = PersonName::split($data['name']);
                 }
             }
-            if ($user->isCentre() && (isset($data['first_name']) || isset($data['last_name']))) {
+            $previousHolder = PersonName::join($user->first_name, $user->last_name);
+            $holderRenamed = $user->isCentre() && (isset($data['first_name']) || isset($data['last_name']));
+            if ($holderRenamed) {
                 // The centre account's `name` is the centre; only the holder's name changes.
                 $user->first_name = $data['first_name'] ?? $user->first_name;
                 $user->last_name = $data['last_name'] ?? $user->last_name;
             }
 
-            if ($user->isEducator() && $user->educatorProfile) {
-                app(EducatorProfileService::class)->update($user, Arr::only($data, [
-                    'first_name', 'last_name', 'city', 'province', 'postal_code', 'country',
-                ]));
-            }
+            $user->save();
+
             if ($user->isCentre() && isset($data['contact_person'])) {
                 $user->centre?->update(['contact_person' => $data['contact_person']]);
+            } elseif ($holderRenamed) {
+                app(CentreAccountNameSync::class)->holderRenamed($user, $previousHolder);
             }
 
-            $user->save();
         });
 
-        return $user->refresh();
+        $user->refresh();
+        $after = $user->only(self::AUDITED_FIELDS);
+        if ($before !== $after) {
+            app(AuditTrail::class)->recordChange('account.updated', $user, $before, $after);
+        }
+
+        return $user;
     }
 
     /** Changing the email requires the password (when one is set) and re-verification. */
@@ -61,7 +78,9 @@ class AccountService
             return $user;
         }
 
+        $previous = $user->email;
         $user->forceFill(['email' => $email, 'email_verified_at' => null])->save();
+        app(AuditTrail::class)->record('account.email_changed', $user, ['email' => $previous], ['email' => $email], $user);
         $user->sendEmailVerificationNotification();
 
         return $user;
@@ -74,6 +93,7 @@ class AccountService
         }
 
         $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
+        app(AuditTrail::class)->record('account.password_changed', $user, actor: $user);
 
         // Sign out other API clients.
         $user->tokens()->when($currentTokenId, fn ($q) => $q->whereKeyNot($currentTokenId))->delete();
@@ -107,6 +127,7 @@ class AccountService
 
             $user->forceFill(['status' => 'deactivated', 'deactivated_at' => now()])->save();
             $user->tokens()->delete();
+            app(AuditTrail::class)->record('account.deactivated', $user, ['status' => 'active'], ['status' => 'deactivated'], $user);
         });
     }
 

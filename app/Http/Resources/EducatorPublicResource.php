@@ -25,6 +25,7 @@ class EducatorPublicResource extends JsonResource
             'initials' => Format::initials($this->fullName()),
             'photo_url' => $media->url($this->photo_path),
             'professional_title' => $this->professional_title,
+            'website' => $this->website,
             'city' => $this->city,
             'province' => $this->province,
             'years_experience' => $this->years_experience,

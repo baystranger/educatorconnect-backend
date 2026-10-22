@@ -20,6 +20,14 @@ return [
         'reactivation_window_days' => 30,
     ],
 
+    'demo' => [
+        // Demo data refuses to load on a production server unless this is switched on
+        // (ALLOW_DEMO_SEED=true), e.g. for a client acceptance-testing copy of the site.
+        // Remove it again with `php artisan demo:purge`.
+        'allow_seed' => (bool) env('ALLOW_DEMO_SEED', false),
+        'email_domain' => 'demo.educatorconnect.ca',
+    ],
+
     'uploads' => [
         'disk' => env('MEDIA_DISK', 'public'),
         'private_disk' => env('PRIVATE_MEDIA_DISK', 'local'),

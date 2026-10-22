@@ -21,6 +21,7 @@ class CentreProfileService
     public function __construct(
         private readonly LocationService $locations,
         private readonly MediaStorage $media,
+        private readonly CentreAccountNameSync $nameSync,
     ) {}
 
     public function load(ChildcareCentre $centre): ChildcareCentre
@@ -74,6 +75,10 @@ class CentreProfileService
         }
 
         $centre->update($attributes);
+
+        if ($centre->wasChanged('name')) {
+            $this->nameSync->centreRenamed($centre);
+        }
     }
 
     private function updateParents(ChildcareCentre $centre, array $data): void

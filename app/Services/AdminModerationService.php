@@ -16,14 +16,18 @@ use Illuminate\Support\Facades\DB;
  */
 class AdminModerationService
 {
+    public function __construct(private readonly AuditTrail $audit) {}
+
     public function approveCentre(ChildcareCentre $centre): ChildcareCentre
     {
         $wasLive = $centre->isPubliclyVisible();
+        $before = $centre->only(['status', 'is_published']);
         $centre->forceFill([
             'status' => 'published',
             'is_published' => true,
             'published_at' => $centre->published_at ?? now(),
         ])->save();
+        $this->audit->recordChange('centre.approved', $centre, $before, $centre->only(['status', 'is_published']));
 
         if (! $wasLive) {
             $centre->owner->notify(new CentreProfilePublishedNotification($centre));
@@ -34,24 +38,30 @@ class AdminModerationService
 
     public function verifyCentre(ChildcareCentre $centre, bool $verified): ChildcareCentre
     {
+        $before = $centre->only(['is_verified']);
         $centre->forceFill([
             'is_verified' => $verified,
             'licensing_status' => $verified ? 'verified' : null,
         ])->save();
+        $this->audit->recordChange($verified ? 'centre.verified' : 'centre.unverified', $centre, $before, $centre->only(['is_verified']));
 
         return $centre->refresh();
     }
 
     public function suspendCentre(ChildcareCentre $centre): ChildcareCentre
     {
+        $before = $centre->only(['status', 'is_published']);
         $centre->forceFill(['status' => 'suspended', 'is_published' => false])->save();
+        $this->audit->recordChange('centre.suspended', $centre, $before, $centre->only(['status', 'is_published']));
 
         return $centre->refresh();
     }
 
     public function verifyCredential(EducatorCredential $credential, string $status): EducatorCredential
     {
+        $before = $credential->verification_status;
         $credential->forceFill(['verification_status' => $status])->save();
+        $this->audit->recordChange('credential.reviewed', $credential, ['verification_status' => $before], ['verification_status' => $status]);
 
         // An educator is "verified" once at least one certification is verified.
         $profile = $credential->profile;
@@ -80,6 +90,8 @@ class AdminModerationService
                 'reviewed_at' => now(),
             ]);
 
+            $this->audit->record('claim.approved', $claim, ['status' => 'pending'], ['status' => 'approved', 'listing_id' => $claim->professional_listing_id, 'owner_user_id' => $claim->user_id]);
+
             return $claim->refresh();
         });
 
@@ -90,6 +102,7 @@ class AdminModerationService
 
     public function approveListing(ProfessionalListing $listing, int $adminId): ProfessionalListing
     {
+        $before = $listing->status;
         $listing->forceFill([
             'status' => 'claimed_verified',
             'is_verified' => true,
@@ -97,6 +110,7 @@ class AdminModerationService
             'reviewed_by' => $adminId,
             'reviewed_at' => now(),
         ])->save();
+        $this->audit->record('listing.approved', $listing, ['status' => $before], ['status' => 'claimed_verified']);
 
         $listing->owner?->notify(new ProfessionalListingReviewedNotification($listing, true));
 
@@ -105,12 +119,14 @@ class AdminModerationService
 
     public function rejectListing(ProfessionalListing $listing, int $adminId, string $notes): ProfessionalListing
     {
+        $before = $listing->status;
         $listing->forceFill([
             'status' => 'rejected',
             'review_notes' => $notes,
             'reviewed_by' => $adminId,
             'reviewed_at' => now(),
         ])->save();
+        $this->audit->record('listing.rejected', $listing, ['status' => $before], ['status' => 'rejected', 'notes' => $notes]);
 
         $listing->owner?->notify(new ProfessionalListingReviewedNotification($listing, false, $notes));
 
@@ -120,6 +136,7 @@ class AdminModerationService
     public function rejectClaim(ProfessionalClaim $claim, int $adminId, string $notes = ''): ProfessionalClaim
     {
         $claim->forceFill(['status' => 'rejected', 'reviewed_by' => $adminId, 'reviewed_at' => now(), 'admin_notes' => $notes])->save();
+        $this->audit->record('claim.rejected', $claim, ['status' => 'pending'], ['status' => 'rejected', 'notes' => $notes]);
 
         return $claim->refresh();
     }

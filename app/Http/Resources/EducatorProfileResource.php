@@ -28,6 +28,7 @@ class EducatorProfileResource extends JsonResource
             'full_name' => $this->fullName(),
             'initials' => Format::initials($this->fullName()),
             'professional_title' => $this->professional_title,
+            'website' => $this->website,
             'years_experience' => $this->years_experience,
             'languages' => $this->languages ?? [],
             'city' => $this->city,

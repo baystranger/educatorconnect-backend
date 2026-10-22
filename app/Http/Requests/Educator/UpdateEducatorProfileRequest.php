@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Educator;
 
 use App\Models\EducatorProfile;
+use App\Support\Website;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,6 +26,7 @@ class UpdateEducatorProfileRequest extends FormRequest
             'first_name' => ['sometimes', 'required', 'string', 'max:100'],
             'last_name' => ['sometimes', 'required', 'string', 'max:100'],
             'professional_title' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'website' => ['sometimes', ...Website::rules()],
             'years_experience' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:60'],
             'languages' => $tagList,
             'languages.*' => $tag,
@@ -71,5 +73,10 @@ class UpdateEducatorProfileRequest extends FormRequest
             'student.required_practicum_hours' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:2000'],
             'student.preferred_location' => ['sometimes', 'nullable', 'string', 'max:150'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['website.regex' => 'Enter a valid website address.'];
     }
 }

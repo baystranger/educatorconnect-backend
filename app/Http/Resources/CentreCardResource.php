@@ -42,6 +42,7 @@ class CentreCardResource extends JsonResource
             'has_welcome_video' => (bool) $this->welcome_video_path,
             'cover_url' => $media->url(CentrePresenter::coverPath($this->resource)),
             'logo_url' => $media->url($this->logo_path),
+            'website' => $this->website,
         ];
     }
 }

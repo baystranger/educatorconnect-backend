@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Centre;
 
+use App\Support\Website;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,7 +26,7 @@ class CentreSectionRequest extends FormRequest
                 'contact_person' => ['nullable', 'string', 'max:150'],
                 'phone' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+().\-\s]{7,30}$/'],
                 'email' => ['nullable', 'email', 'max:255'],
-                'website' => ['nullable', 'string', 'max:255', 'regex:/^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i'],
+                'website' => Website::rules(),
                 'social_links' => ['nullable', 'array', 'max:6'],
                 'social_links.*' => ['string', 'max:255'],
                 'address' => ['nullable', 'string', 'max:255'],

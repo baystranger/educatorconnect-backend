@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 class EducatorProfileService
 {
     private const PROFILE_FIELDS = [
-        'first_name', 'last_name', 'professional_title', 'years_experience', 'languages',
+        'first_name', 'last_name', 'professional_title', 'website', 'years_experience', 'languages',
         'professional_summary', 'teaching_philosophy', 'age_groups_preferred', 'areas_of_expertise',
         'special_interests', 'professional_development', 'first_aid_cpr', 'criminal_record_check_status',
         'criminal_record_checked_on', 'show_criminal_record_status', 'portfolio', 'availability',

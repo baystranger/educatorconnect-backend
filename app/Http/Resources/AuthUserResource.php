@@ -51,6 +51,7 @@ class AuthUserResource extends JsonResource
                 'longitude' => $profile->longitude,
                 'search_radius_km' => $profile->search_radius_km,
                 'professional_title' => $profile->professional_title,
+                'website' => $profile->website,
                 'years_experience' => $profile->years_experience,
                 'has_resume' => (bool) $profile->resume_path,
                 'resume_name' => $profile->resume_original_name,

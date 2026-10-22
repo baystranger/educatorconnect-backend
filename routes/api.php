@@ -1,12 +1,15 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\ModerationController;
+use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Centre;
 use App\Http\Controllers\Api\V1\ChildcareCentreController;
 use App\Http\Controllers\Api\V1\Educator;
 use App\Http\Controllers\Api\V1\EducatorPublicController;
+use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\JobController;
 use App\Http\Controllers\Api\V1\MetaController;
 use App\Http\Controllers\Api\V1\NotificationController;
@@ -40,14 +43,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             ->name('verification.verify');
 
         Route::middleware('auth:sanctum')->group(function () {
-            Route::get('me', [AuthController::class, 'me']);
+            // Logout stays open to suspended accounts so they can still sign out.
             Route::post('logout', [AuthController::class, 'logout']);
-            Route::post('email/verification-notification', [AuthController::class, 'resendVerification'])->middleware('throttle:3,1');
-            Route::delete('providers/{provider}', [AuthController::class, 'disconnectProvider']);
+            Route::middleware('active')->group(function () {
+                Route::get('me', [AuthController::class, 'me']);
+                Route::post('email/verification-notification', [AuthController::class, 'resendVerification'])->middleware('throttle:3,1');
+                Route::delete('providers/{provider}', [AuthController::class, 'disconnectProvider']);
+            });
         });
     });
 
     // ── Public ─────────────────────────────────────────────────────
+    Route::get('health', HealthController::class)->middleware('throttle:30,1');
     Route::get('meta/options', [MetaController::class, 'options']);
 
     Route::get('childcare-centres', [ChildcareCentreController::class, 'index']);
@@ -65,7 +72,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::get('professionals/{slug}', [ProfessionalDirectoryController::class, 'show']);
 
     // ── Signed in (any role) ───────────────────────────────────────
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::prefix('account')->group(function () {
             Route::put('/', [AccountController::class, 'update']);
             Route::put('email', [AccountController::class, 'changeEmail'])->middleware('throttle:auth');
@@ -167,6 +174,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // ── Administrator ──────────────────────────────────────────
         Route::middleware('role:administrator')->prefix('admin')->group(function () {
             Route::get('overview', [ModerationController::class, 'overview']);
+            Route::get('users', [AdminUserController::class, 'index']);
+            Route::post('users/{user}/{action}', [AdminUserController::class, 'action'])->whereNumber('user')->whereIn('action', ['suspend', 'reinstate']);
+            Route::get('audit-logs', AuditLogController::class);
             Route::get('centres', [ModerationController::class, 'centres']);
             Route::post('centres/{centre}/{action}', [ModerationController::class, 'centreAction'])->whereIn('action', ['approve', 'verify', 'unverify', 'suspend']);
             Route::get('credentials', [ModerationController::class, 'credentials']);

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\Website;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -14,7 +16,7 @@ class EducatorProfile extends Model
     public const VISIBILITY_APPLIED_ONLY = 'applied_only';
 
     protected $fillable = [
-        'user_id', 'first_name', 'last_name', 'slug', 'professional_title', 'photo_path',
+        'user_id', 'first_name', 'last_name', 'slug', 'professional_title', 'website', 'photo_path',
         'professional_summary', 'teaching_philosophy', 'years_experience', 'languages',
         'certifications', 'education', 'age_groups_preferred', 'areas_of_expertise',
         'special_interests', 'professional_development', 'first_aid_cpr',
@@ -38,6 +40,8 @@ class EducatorProfile extends Model
             'available_from' => 'date', 'criminal_record_checked_on' => 'date', 'setup_dismissed_at' => 'datetime',
         ];
     }
+
+    protected function website(): Attribute { return Website::attribute(); }
 
     public function user() { return $this->belongsTo(User::class); }
     public function studentProfile() { return $this->hasOne(StudentProfile::class); }

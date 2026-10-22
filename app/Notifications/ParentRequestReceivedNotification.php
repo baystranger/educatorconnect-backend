@@ -40,7 +40,7 @@ class ParentRequestReceivedNotification extends PlatformNotification
     {
         $payload = $this->payload();
 
-        return (new MailMessage)
+        return $this->mailFor($notifiable)
             ->subject($payload['title'])
             ->line($payload['title'])
             ->line('Reply from your Families inbox — parents get an email copy of every reply.')

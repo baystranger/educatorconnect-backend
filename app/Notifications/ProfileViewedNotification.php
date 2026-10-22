@@ -27,7 +27,7 @@ class ProfileViewedNotification extends PlatformNotification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)
+        return $this->mailFor($notifiable)
             ->subject($this->centre->name.' viewed your profile')
             ->line($this->centre->name.' viewed your Educator Connect profile.')
             ->action('Polish your profile', $this->frontendUrl('/educator/profile'));

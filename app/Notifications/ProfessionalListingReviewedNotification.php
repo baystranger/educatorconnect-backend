@@ -32,7 +32,7 @@ class ProfessionalListingReviewedNotification extends PlatformNotification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $mail = (new MailMessage)->subject($this->approved
+        $mail = $this->mailFor($notifiable)->subject($this->approved
             ? $this->listing->name.' is live on Educator Connect'
             : 'Your Educator Connect listing needs changes');
 

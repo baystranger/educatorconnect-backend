@@ -36,7 +36,7 @@ class ApplicantMessageNotification extends PlatformNotification
     {
         $payload = $this->payload();
 
-        return (new MailMessage)
+        return $this->mailFor($notifiable)
             ->subject('New message about '.$this->application->job->title)
             ->line($this->message->body)
             ->action('Open conversation', $this->frontendUrl($payload['href']));

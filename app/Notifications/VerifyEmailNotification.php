@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Concerns\GreetsByName;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
@@ -13,6 +14,13 @@ use Illuminate\Support\Facades\URL;
  */
 class VerifyEmailNotification extends VerifyEmail
 {
+    use GreetsByName;
+
+    public function toMail($notifiable)
+    {
+        return parent::toMail($notifiable)->greeting(self::greetingFor($notifiable));
+    }
+
     protected function verificationUrl($notifiable): string
     {
         return URL::temporarySignedRoute(

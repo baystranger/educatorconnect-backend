@@ -26,7 +26,7 @@ class CentreProfilePublishedNotification extends PlatformNotification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)
+        return $this->mailFor($notifiable)
             ->subject($this->centre->name.' is live on Educator Connect')
             ->line('Your centre profile is published. Families can now find you, ask questions, book tours and join your waitlist.')
             ->action('View your profile', $this->frontendUrl('/childcare/'.$this->centre->slug));

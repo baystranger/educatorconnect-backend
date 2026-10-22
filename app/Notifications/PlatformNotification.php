@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\User;
+use App\Notifications\Concerns\GreetsByName;
 use App\Services\NotificationPreferences;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -12,10 +13,13 @@ use Illuminate\Notifications\Notification;
  * Base class for in-app + email notifications. Channels follow the recipient's
  * preferences for {@see preferenceType()}; the database payload is what the
  * notification bell renders.
+ *
+ * Emails stay queued, but the in-app (database) copy is written immediately so the
+ * bell updates in real time instead of waiting for the next queue run.
  */
 abstract class PlatformNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use GreetsByName, Queueable;
 
     abstract protected function preferenceType(): string;
 
@@ -31,6 +35,14 @@ abstract class PlatformNotification extends Notification implements ShouldQueue
         }
 
         return app(NotificationPreferences::class)->channels($notifiable, $this->preferenceType());
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function viaConnections(): array
+    {
+        return ['database' => 'sync'];
     }
 
     public function toArray(object $notifiable): array

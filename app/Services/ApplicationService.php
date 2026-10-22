@@ -5,7 +5,10 @@ namespace App\Services;
 use App\Models\Job;
 use App\Models\JobApplication;
 use App\Models\User;
+use App\Notifications\ApplicationSentNotification;
 use App\Notifications\ApplicationStatusChangedNotification;
+use App\Notifications\ApplicationViewedNotification;
+use App\Notifications\ApplicationWithdrawnNotification;
 use App\Notifications\JobApplicationSubmittedNotification;
 use App\Support\ApplicationStages;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +65,7 @@ class ApplicationService
 
             $application->events()->create(['status' => 'new', 'actor_user_id' => $educator->id]);
             $job->centre->owner->notify(new JobApplicationSubmittedNotification($application));
+            $educator->notify(new ApplicationSentNotification($application));
 
             return $application->load(['job.centre', 'events']);
         });
@@ -76,6 +80,8 @@ class ApplicationService
         DB::transaction(function () use ($application, $educator): void {
             $application->update(['status' => 'withdrawn', 'withdrawn_at' => now(), 'status_changed_at' => now()]);
             $application->events()->create(['status' => 'withdrawn', 'actor_user_id' => $educator->id]);
+            $application->loadMissing('job.centre.owner');
+            $application->job->centre->owner?->notify(new ApplicationWithdrawnNotification($application));
         });
 
         return $application->refresh();
@@ -126,6 +132,10 @@ class ApplicationService
     {
         if ($application->centre_seen_at === null) {
             $application->forceFill(['centre_seen_at' => now()])->save();
+            if ($application->status !== 'withdrawn') {
+                $application->loadMissing('educator');
+                $application->educator?->notify(new ApplicationViewedNotification($application));
+            }
         }
     }
 }

@@ -7,12 +7,16 @@ use App\Http\Requests\Search\CentreSearchRequest;
 use App\Http\Resources\CentreCardResource;
 use App\Http\Resources\CentreProfileResource;
 use App\Http\Resources\JobResource;
+use App\Models\ChildcareCentre;
+use App\Models\User;
+use App\Notifications\CentreProfileViewedNotification;
 use App\Repositories\Contracts\ChildcareCentreRepositoryInterface;
 use App\Services\LocationService;
 use App\Services\ProfileViewRecorder;
 use App\Support\Geo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Public childcare search and centre profiles (parents need no account).
@@ -50,13 +54,27 @@ class ChildcareCentreController extends Controller
         $centre = $this->centres->findPublicBySlug($slug);
         abort_if(! $centre, 404, 'This centre profile is not available.');
 
-        $this->views->record($centre, $request->user('sanctum'), $request->ip().'|'.$request->userAgent());
+        $viewer = $request->user('sanctum');
+        $this->views->record($centre, $viewer, $request->ip().'|'.$request->userAgent());
+        $this->notifyCentreOfView($centre, $viewer);
 
         if ($request->filled(['latitude', 'longitude']) && $centre->latitude !== null) {
             $centre->distance = Geo::distanceKm((float) $request->query('latitude'), (float) $request->query('longitude'), $centre->latitude, $centre->longitude);
         }
 
         return $this->ok(new CentreProfileResource($centre));
+    }
+
+    /** Signed-in viewers (other than the owner and administrators) are named to the centre, once per day each. */
+    private function notifyCentreOfView(ChildcareCentre $centre, ?User $viewer): void
+    {
+        if (! $viewer || $viewer->isAdministrator() || (int) $centre->owner_user_id === (int) $viewer->id) {
+            return;
+        }
+
+        if (Cache::add("centre-view-notified:{$centre->id}:{$viewer->id}:".now()->toDateString(), true, now()->endOfDay())) {
+            $centre->owner()->first()?->notify(new CentreProfileViewedNotification($centre, $viewer));
+        }
     }
 
     public function jobs(string $slug): JsonResponse

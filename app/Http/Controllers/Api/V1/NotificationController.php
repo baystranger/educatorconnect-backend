@@ -13,11 +13,15 @@ use Illuminate\Notifications\DatabaseNotification;
 class NotificationController extends Controller
 {
     public function index(Request $request): JsonResponse
-    {        
-        $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:50']]);
+    {
+        $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'filter' => ['nullable', 'in:all,unread'],
+        ]);
         $user = $request->user();
 
-        $page = $user->notifications()->latest()->paginate($request->integer('per_page', 10));
+        $query = $request->input('filter') === 'unread' ? $user->unreadNotifications() : $user->notifications();
+        $page = $query->latest()->paginate($request->integer('per_page', 10));
 
         return $this->ok(
             $page->through(fn (DatabaseNotification $n) => $this->present($n)),

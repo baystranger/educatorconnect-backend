@@ -169,6 +169,8 @@ return [
             'tour_requests' => ['label' => 'Tour requests', 'description' => 'When a family asks to book a tour', 'default' => [true, true]],
             'waitlist' => ['label' => 'Waitlist sign-ups', 'description' => 'When a family joins your waitlist', 'default' => [true, true]],
             'applicant_messages' => ['label' => 'Applicant messages', 'description' => 'Replies from educators you contacted', 'default' => [true, true]],
+            'applicant_activity' => ['label' => 'Applicant activity', 'description' => 'When an applicant withdraws their application', 'default' => [true, true]],
+            'profile_views' => ['label' => 'Profile views', 'description' => 'When a signed-in educator views your centre profile', 'default' => [false, true]],
             'profile_review' => ['label' => 'Profile review', 'description' => 'When your profile changes are approved', 'default' => [true, true]],
             'tips' => ['label' => 'Tips & resources', 'description' => 'Occasional guides for centres', 'default' => [false, false]],
         ],

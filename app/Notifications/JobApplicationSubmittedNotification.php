@@ -32,9 +32,8 @@ class JobApplicationSubmittedNotification extends PlatformNotification
     {
         $payload = $this->payload();
 
-        return (new MailMessage)
+        return $this->mailFor($notifiable)
             ->subject('New applicant: '.$this->application->job->title)
-            ->greeting('You have a new applicant')
             ->line($payload['title'])
             ->action('Review applicant', $this->frontendUrl($payload['href']));
     }

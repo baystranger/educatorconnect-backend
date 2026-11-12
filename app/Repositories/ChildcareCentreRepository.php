@@ -83,14 +83,20 @@ class ChildcareCentreRepository implements ChildcareCentreRepositoryInterface
             $lng = (float) $filters['longitude'];
             Geo::selectDistance($query, $lat, $lng, 'childcare_centres');
             if (! empty($filters['radius'])) {
-                Geo::restrictToRadius($query, $lat, $lng, (float) $filters['radius'], 'childcare_centres');
+                $radius = (float) $filters['radius'];
+                $query->where(function (Builder $q) use ($lat, $lng, $radius, $filters): void {
+                    $q->where(fn (Builder $inside) => Geo::restrictToRadius($inside, $lat, $lng, $radius, 'childcare_centres'));
+                    // Centres without coordinates yet still show when they match the typed place.
+                    if (! empty($filters['location'])) {
+                        $q->orWhere(fn (Builder $unmapped) => $this->matchLocationText(
+                            $unmapped->where(fn (Builder $n) => $n->whereNull('childcare_centres.latitude')->orWhereNull('childcare_centres.longitude')),
+                            $filters['location'],
+                        ));
+                    }
+                });
             }
         } elseif (! empty($filters['location'])) {
-            $location = trim(preg_replace('/\(.*\)/', '', $filters['location']));
-            $city = trim(explode(',', $location)[0]);
-            $postalPrefix = strtoupper(substr(preg_replace('/\s+/', '', $location), 0, 3));
-            $query->where(fn (Builder $q) => $q->where('city', 'like', '%'.$city.'%')
-                ->orWhere('postal_code', 'like', $postalPrefix.'%'));
+            $this->matchLocationText($query, $filters['location']);
         }
 
         match (true) {
@@ -99,7 +105,8 @@ class ChildcareCentreRepository implements ChildcareCentreRepositoryInterface
                     ->whereColumn('centre_programs.childcare_centre_id', 'childcare_centres.id')
                     ->where('availability', CentreProgram::AVAILABILITY_SPACES)
             ),
-            $hasGeo => $query->orderBy('distance'),
+            // Unmapped centres (NULL distance) go last.
+            $hasGeo => $query->orderByRaw('distance IS NULL')->orderBy('distance'),
             default => $query->orderByDesc('is_verified')->orderBy('name'),
         };
 
@@ -108,6 +115,33 @@ class ChildcareCentreRepository implements ChildcareCentreRepositoryInterface
             ->withCount(['gallery' => fn (Builder $q) => $q->where('type', 'image')->where('is_public', true)])
             ->paginate($filters['per_page'] ?? 10)
             ->withQueryString();
+    }
+
+    public function originForLocation(string $location): ?array
+    {
+        $row = $this->matchLocationText(ChildcareCentre::query()->publiclyVisible(), $location)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->selectRaw('AVG(latitude) AS lat, AVG(longitude) AS lng, COUNT(*) AS n')
+            ->toBase()
+            ->first();
+
+        if (! $row || ! (int) $row->n) {
+            return null;
+        }
+
+        return ['latitude' => (float) $row->lat, 'longitude' => (float) $row->lng];
+    }
+
+    /** City name or postal-code prefix match for a typed location ("Surrey", "Surrey, BC", "V3T 0A1"). */
+    private function matchLocationText(Builder $query, string $location): Builder
+    {
+        $location = trim(preg_replace('/\(.*\)/', '', $location));
+        $city = trim(explode(',', $location)[0]);
+        $postalPrefix = strtoupper(substr(preg_replace('/\s+/', '', $location), 0, 3));
+
+        return $query->where(fn (Builder $q) => $q->where('childcare_centres.city', 'like', '%'.$city.'%')
+            ->orWhere('childcare_centres.postal_code', 'like', $postalPrefix.'%'));
     }
 
     public function create(array $data): ChildcareCentre

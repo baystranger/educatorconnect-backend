@@ -33,7 +33,9 @@ class Geo
             ->whereNotNull($table.'.longitude')
             ->whereBetween($table.'.latitude', [$lat - $latDelta, $lat + $latDelta])
             ->whereBetween($table.'.longitude', [$lng - $lngDelta, $lng + $lngDelta])
-            ->whereRaw(self::expression($query, $table).' <= ?', [$lat, $lng, $lat, $radiusKm]);
+            // "(? + 0)": SQLite binds the radius as text and ranks every number below any text,
+            // which made the radius a no-op there; adding 0 forces a numeric comparison (MySQL too).
+            ->whereRaw(self::expression($query, $table).' <= (? + 0)', [$lat, $lng, $lat, $radiusKm]);
     }
 
     public static function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float

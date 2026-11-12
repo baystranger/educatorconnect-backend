@@ -13,6 +13,9 @@ interface ChildcareCentreRepositoryInterface
 
     public function search(array $filters): LengthAwarePaginator;
 
+    /** Average coordinates of centres matching a typed city / postal code, or null. */
+    public function originForLocation(string $location): ?array;
+
     public function create(array $data): ChildcareCentre;
 
     public function update(ChildcareCentre $centre, array $data): ChildcareCentre;

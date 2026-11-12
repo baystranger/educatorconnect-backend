@@ -33,7 +33,11 @@ class ChildcareCentreController extends Controller
     {
         $filters = $request->validated();
         if (! empty($filters['location']) && ! isset($filters['latitude'])) {
-            $geo = $this->locations->geocode($filters['location'].', Canada');
+            // Typed place → coordinates so the radius applies ("Surrey within 100 km" must
+            // include Burnaby, Vancouver…). If the geocoder is unavailable, centre the search
+            // on the known centres in that city / postal area instead.
+            $geo = $this->locations->geocode($filters['location'].', Canada')
+                ?? (! empty($filters['radius']) ? $this->centres->originForLocation($filters['location']) : null);
             if ($geo) {
                 $filters['latitude'] = $geo['latitude'];
                 $filters['longitude'] = $geo['longitude'];

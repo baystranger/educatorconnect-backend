@@ -51,10 +51,12 @@ return [
         'key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
-    // google | nominatim | none — defaults to google when a Maps key is set, otherwise none.
+    // google | nominatim | none — defaults to google when a Maps key is set, otherwise nominatim (free OpenStreetMap).
     'geocoder' => [
         'driver' => env('GEOCODER'),
         'nominatim_url' => env('NOMINATIM_URL', 'https://nominatim.openstreetmap.org/search'),
+        // A real contact address for OpenStreetMap (falls back to MAIL_FROM_ADDRESS).
+        'contact_email' => env('NOMINATIM_EMAIL'),
     ],
 
 ];

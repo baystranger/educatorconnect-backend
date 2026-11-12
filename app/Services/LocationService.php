@@ -47,7 +47,10 @@ class LocationService
             return $driver;
         }
 
-        return config('services.google_maps.key') ? 'google' : 'none';
+        // Without a Google key fall back to OpenStreetMap's free geocoder, so typed places
+        // ("Surrey", "V3T 0A1") resolve to coordinates and the radius filter applies.
+        // Set GEOCODER=none to switch geocoding off.
+        return config('services.google_maps.key') ? 'google' : 'nominatim';
     }
 
     private function google(string $address): ?array
@@ -68,15 +71,28 @@ class LocationService
 
     private function nominatim(string $address): ?array
     {
-        $response = Http::timeout(6)
-            ->withHeaders(['User-Agent' => config('app.name').' geocoder ('.config('mail.from.address').')'])
-            ->get(config('services.geocoder.nominatim_url', 'https://nominatim.openstreetmap.org/search'), [
+        // OSM's usage policy requires an identifying User-Agent (app + site URL) and asks
+        // for a real contact email; placeholder addresses get the request refused (403).
+        $email = config('services.geocoder.contact_email') ?: config('mail.from.address');
+        $hasRealEmail = $email && ! str_ends_with(strtolower($email), '@example.com');
+
+        $http = Http::timeout(6)
+            ->withHeaders(['User-Agent' => config('app.name').'/1.0 (+'.config('app.url').')'.($hasRealEmail ? ' '.$email : '')])
+            ->get(config('services.geocoder.nominatim_url', 'https://nominatim.openstreetmap.org/search'), array_filter([
                 'q' => $address,
                 'format' => 'json',
                 'limit' => 1,
                 'countrycodes' => 'ca,us',
-            ])->json();
+                'email' => $hasRealEmail ? $email : null,
+            ]));
 
+        if (! $http->successful()) {
+            Log::warning('Nominatim geocoding refused', ['status' => $http->status(), 'body' => mb_substr($http->body(), 0, 200)]);
+
+            return null;
+        }
+
+        $response = $http->json();
         if (empty($response[0]['lat'])) {
             return null;
         }
